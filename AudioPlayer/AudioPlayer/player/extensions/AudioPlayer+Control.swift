@@ -161,43 +161,16 @@ extension AudioPlayer {
         let position = max(range.earliest, range.latest - padding)
         seekSafely(to: position, completionHandler: completionHandler)
     }
-
-    #if os(iOS) || os(tvOS)
-    //swiftlint:disable cyclomatic_complexity
-    /// Handle events received from Control Center/Lock screen/Other in UIApplicationDelegate.
-    ///
-    /// - Parameter event: The event received.
-    public func remoteControlReceived(with event: UIEvent) {
-        guard event.type == .remoteControl else {
-            return
+    
+    public func seekToRelativeTime(_ relativeTime: TimeInterval, completionHandler: ((Bool) -> Void)? = nil) {
+        guard let currentTime = player?.currentTime(),
+            currentTime.seconds.isFinite else {
+                completionHandler?(false)
+                return
         }
-
-        switch event.subtype {
-        case .remoteControlBeginSeekingBackward:
-            seekingBehavior.handleSeekingStart(player: self, forward: false)
-        case .remoteControlBeginSeekingForward:
-            seekingBehavior.handleSeekingStart(player: self, forward: true)
-        case .remoteControlEndSeekingBackward:
-            seekingBehavior.handleSeekingEnd(player: self, forward: false)
-        case .remoteControlEndSeekingForward:
-            seekingBehavior.handleSeekingEnd(player: self, forward: true)
-        case .remoteControlNextTrack:
-            next()
-        case .remoteControlPause,
-             .remoteControlTogglePlayPause where state.isPlaying:
-            pause()
-        case .remoteControlPlay,
-             .remoteControlTogglePlayPause where state.isPaused:
-            resume()
-        case .remoteControlPreviousTrack:
-            previous()
-        case .remoteControlStop:
-            stop()
-        default:
-            break
-        }
+        let seekToAbsoluteTime = max(currentTime.seconds + relativeTime, 0)
+        seek(to: seekToAbsoluteTime, byAdaptingTimeToFitSeekableRanges: false, toleranceBefore: kCMTimePositiveInfinity, toleranceAfter: kCMTimePositiveInfinity, completionHandler: completionHandler)
     }
-    #endif
 }
 
 extension AudioPlayer {
@@ -216,10 +189,10 @@ extension AudioPlayer {
             completionHandler(false)
             return
         }
-        player?.seek(to: CMTime(timeInterval: time), toleranceBefore: toleranceBefore, toleranceAfter: toleranceAfter,
-                     completionHandler: { [weak self] finished in
-                        completionHandler(finished)
-                        self?.updateNowPlayingInfoCenter()
-        })
+        player?.seek(to: CMTime(timeInterval: time), toleranceBefore: toleranceBefore,
+                     toleranceAfter: toleranceAfter) { [weak self] finished in
+            completionHandler(finished)
+            self?.updateNowPlayingInfoCenter()
+        }
     }
 }
